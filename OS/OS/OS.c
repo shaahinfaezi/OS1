@@ -10,119 +10,143 @@
 #include <string.h>
 #include <stdint.h>
 #include <pthread.h>
+#include <semaphore.h>
 
 
-struct arg_struct {
-    const char* path;
+
+struct arg {
+
+    char * path;
+    
     int  id;
+
 };
 
-int layer = 1;
+pthread_t threads[100000];
 
-pthread_mutex_t mutex;
+int threadCount = 0;
 
-void* search(void* arguments) {
+pthread_mutex_t mutexQueue;
 
-    struct arg_struct* args = (struct arg_struct*)arguments;
+void * search(void * arguments);
 
-    const char* path = args->path;
 
-    int  id = args > id;
+void submitThread(struct arg* argsPass) {
 
-    DIR* dirFile;
+    pthread_mutex_lock(&mutexQueue);
 
-    if (!(dirFile = opendir(path))) {
+    pthread_t *thread=(pthread_t *)malloc(sizeof(pthread_t));
+
+    pthread_create(thread, NULL, search, (void*)argsPass);
+
+    threads[threadCount] = *thread;
+
+    threadCount++;
+
+    pthread_mutex_unlock(&mutexQueue);
+}
+
+
+
+void *search(void * arguments){
+
+    struct arg * args=(struct arg *)malloc(sizeof(struct arg));
+
+    args=(struct arg *)arguments;
+
+    char * path=args->path;
+
+    int id=args->id;
+    
+    DIR * dirFile;
+
+
+    if (!(dirFile = opendir(path))){
         return NULL;
     }
 
     struct dirent* hFile;
 
-    while ((hFile = readdir(dirFile)) != NULL)
-    {
+    while (( hFile = readdir( dirFile )) != NULL ) 
+        {   
+        
+        if (strcmp(hFile->d_name, ".") == 0 || strcmp(hFile->d_name, "..") == 0)
+                continue;
+        
+        if(hFile->d_type==DT_DIR){
+ 
 
-        if (hFile->d_name[0] == '.')
-            continue;
+                char filepath[strlen(path) + 1 + strlen(hFile->d_name) + 1];
 
-        if (hFile->d_type == DT_DIR) {
+                snprintf(filepath, sizeof filepath, "%s/%s", path, hFile->d_name);
 
-            pthread_mutex_lock(&mutex);
+                char* temp=(char*)malloc(strlen(filepath)+1);
 
-            char filepath[strlen(path) + 1 + strlen(hFile->d_name) + 1];
+                strcpy(temp,filepath);
 
-            snprintf(filepath, sizeof filepath, "%s/%s", path, hFile->d_name);
+                printf("folder : %s\n",filepath);
 
-            const char* temp = (const char*)malloc(strlen(filepath) + 1);
+                struct arg* argsPass=(struct arg *)malloc(sizeof(struct arg));
 
-            strcpy(temp, filepath);
+                argsPass->path = temp;
 
-            printf("folder : %s\n", hFile->d_name);
+                argsPass->id = id+1;
 
-            if (layer == 0) {
+                submitThread(argsPass);
 
-                pid_t pid = fork();
-
-            }
-            else {
-
-
-
-                struct arg_struct argsPass;
-
-                argsPass.path = temp;
-
-                argsPass.id = id + 1;
-
-                pthread_mutex_unlock(&mutex);
-
-                pthread_t thread;
-
-                printf("id = %d\n", argsPass.id);
-
-                pthread_create(&thread, NULL, search, (void*)&argsPass);
-
-                pthread_join(thread, NULL);
-
-                free((char*)temp);
-
-
-
-            }
-
-
+            
+            
         }
-        if (hFile->d_type == DT_REG) {
+        if (hFile->d_type==DT_REG){
 
-            printf("file : %s\n", hFile->d_name);
-        }
+                printf("file : %s\n",hFile->d_name);
 
+
+        } 
+
+
+        
 
     }
 
-    layer = 1;
+
 
     closedir(dirFile);
 
 
-
 }
+
+
+
 
 int main()
 {
-    struct arg_struct args;
 
-    args.path = "/";
-
-    args.id = 0;
-
-    pthread_mutex_init(&mutex, NULL);
-
-    pthread_t thread;
-
-    pthread_create(&thread, NULL, search, (void*)&args);
+    pthread_mutex_init(&mutexQueue, NULL);
 
 
-    pthread_join(thread, NULL);
+    char * p = strdup("/");
+
+    struct arg *args=(struct arg *)malloc(sizeof(struct arg));
+
+    args->path = p;
+
+    args->id = 0;
+
+    submitThread(args);
+
+    for (int i = 0; i < threadCount; i++) {
+        if (pthread_join(threads[i], NULL) != 0) {
+
+            perror("Failed to join the thread");
+
+        }
+    }
+    pthread_mutex_destroy(&mutexQueue);
 
 
-    pthread_mutex_destroy(&mutex);
+    pthread_exit(NULL);
+    
+
+    return 0;
 }
