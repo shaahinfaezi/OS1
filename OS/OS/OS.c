@@ -10,26 +10,58 @@
 #include <string.h>
 #include <stdint.h>
 #include <pthread.h>
+#include <semaphore.h>
 
 
-struct arg_struct {
-    const char* path;
+
+struct arg {
+
+    char* path;
+
     int  id;
+
 };
 
-int layer = 1;
+pthread_t threads[100000];
 
-pthread_mutex_t mutex;
+int threadCount = 0;
+
+pthread_mutex_t mutexQueue;
+
+void* search(void* arguments);
+
+
+void submitThread(struct arg* argsPass) {
+
+    pthread_mutex_lock(&mutexQueue);
+
+    pthread_t* thread = (pthread_t*)malloc(sizeof(pthread_t));
+
+    pthread_create(thread, NULL, search, (void*)argsPass);
+
+    threads[threadCount] = *thread;
+
+    threadCount++;
+
+    printf("%d\n\n", threadCount);
+
+    pthread_mutex_unlock(&mutexQueue);
+}
+
+
 
 void* search(void* arguments) {
 
-    struct arg_struct* args = (struct arg_struct*)arguments;
+    struct arg* args = (struct arg*)malloc(sizeof(struct arg));
 
-    const char* path = args->path;
+    args = (struct arg*)arguments;
 
-    int  id = args > id;
+    char* path = args->path;
+
+    int id = args->id;
 
     DIR* dirFile;
+
 
     if (!(dirFile = opendir(path))) {
         return NULL;
@@ -40,89 +72,87 @@ void* search(void* arguments) {
     while ((hFile = readdir(dirFile)) != NULL)
     {
 
-        if (hFile->d_name[0] == '.')
+        if (strcmp(hFile->d_name, ".") == 0 || strcmp(hFile->d_name, "..") == 0)
             continue;
 
+        if (hFile->d_type == DT_REG) {
+
+            printf("file : %s\n", hFile->d_name);
+
+
+        }
         if (hFile->d_type == DT_DIR) {
 
-            pthread_mutex_lock(&mutex);
 
             char filepath[strlen(path) + 1 + strlen(hFile->d_name) + 1];
 
             snprintf(filepath, sizeof filepath, "%s/%s", path, hFile->d_name);
 
-            const char* temp = (const char*)malloc(strlen(filepath) + 1);
+            char* temp = (char*)malloc(strlen(filepath) + 1);
 
             strcpy(temp, filepath);
 
-            printf("folder : %s\n", hFile->d_name);
+            printf("folder : %s\n", filepath);
 
-            if (layer == 0) {
+            struct arg* argsPass = (struct arg*)malloc(sizeof(struct arg));
 
-                pid_t pid = fork();
+            argsPass->path = temp;
 
-            }
-            else {
+            argsPass->id = id + 1;
 
-
-
-                struct arg_struct argsPass;
-
-                argsPass.path = temp;
-
-                argsPass.id = id + 1;
-
-                pthread_mutex_unlock(&mutex);
-
-                pthread_t thread;
-
-                printf("id = %d\n", argsPass.id);
-
-                pthread_create(&thread, NULL, search, (void*)&argsPass);
-
-                pthread_join(thread, NULL);
-
-                free((char*)temp);
+            submitThread(argsPass);
 
 
 
-            }
-
-
-        }
-        if (hFile->d_type == DT_REG) {
-
-            printf("file : %s\n", hFile->d_name);
         }
 
 
     }
 
-    layer = 1;
 
     closedir(dirFile);
 
 
 
+
+
+
 }
+
+
+
 
 int main()
 {
-    struct arg_struct args;
 
-    args.path = "/";
-
-    args.id = 0;
-
-    pthread_mutex_init(&mutex, NULL);
-
-    pthread_t thread;
-
-    pthread_create(&thread, NULL, search, (void*)&args);
+    pthread_mutex_init(&mutexQueue, NULL);
 
 
-    pthread_join(thread, NULL);
+    char* p = strdup("/home/hakir/Desktop/OS/OS1/");
+
+    struct arg* args = (struct arg*)malloc(sizeof(struct arg));
+
+    args->path = p;
+
+    args->id = 0;
+
+    submitThread(args);
+
+    for (int i = 0; i < threadCount; i++) {
+
+        if (pthread_join(threads[i], NULL) != 0) {
+            printf("error");
+        }
+        pthread_exit(NULL);
+
+    }
 
 
-    pthread_mutex_destroy(&mutex);
+    pthread_mutex_destroy(&mutexQueue);
+
+
+
+
+
+    return 0;
 }
