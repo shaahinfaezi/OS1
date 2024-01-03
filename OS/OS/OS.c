@@ -339,14 +339,22 @@ void* search(void* arguments) {
 
 
 
+<<<<<<< HEAD
 int exmain(char* p_a_t_h)
+=======
+int main()
+>>>>>>> 92e3d2571eef8e4ed3b99c112cdd06bbef5812ba
 {
 
     pthread_mutex_init(&mutexQueue, NULL);
 
     pthread_mutex_init(&mutexCount, NULL);
 
+<<<<<<< HEAD
     char* p = strdup(p_a_t_h);
+=======
+    char* p = strdup("");
+>>>>>>> 92e3d2571eef8e4ed3b99c112cdd06bbef5812ba
 
     int id = 0;
 
