@@ -20,19 +20,21 @@ struct arg {
 
 };
 
-pthread_t threads[100000];
+pthread_t threads[10000];
 
 int threadCount = 0;
 
-int FileCount;
+int FileCount = 0;
 
 pthread_mutex_t mutexQueue;
 
 pthread_mutex_t mutexCount;
 
-int pCount=0;
+int FilePipeCount = 0;
 
-int pipes[10000+1][2];
+int FilePipes[10000 + 1][2];
+
+
 
 void* search(void* arguments);
 
@@ -50,6 +52,8 @@ void submitThread(struct arg* argsPass) {
     threadCount++;
 
     pthread_mutex_unlock(&mutexQueue);
+
+
 }
 
 
@@ -80,16 +84,21 @@ void* search(void* arguments) {
         if (hFile->d_type == DT_REG) {
 
             printf("file : %s\n", hFile->d_name);
-            
+
             pthread_mutex_lock(&mutexCount);
+
+
+            read(FilePipes[FilePipeCount][0], &FileCount, sizeof(int));
 
             FileCount++;
 
-            printf("%d\n%d\n\n\n\n\n",pCount,FileCount);
+            printf("%d\n%d\n\n\n\n\n", FilePipeCount, FileCount);
+
+            write(FilePipes[FilePipeCount][1], &FileCount, sizeof(int));
 
             pthread_mutex_unlock(&mutexCount);
 
-            write(pipes[pCount][1],&FileCount,sizeof(int));
+
 
         }
         if (hFile->d_type == DT_DIR) {
@@ -132,9 +141,11 @@ int main()
 
     pthread_mutex_init(&mutexCount, NULL);
 
-    char* p = strdup("/home/hakir/Desktop/Main (2)/");
+    char* p = strdup("/home/hakir/Desktop");
 
-    int id=0;
+    //
+
+    int id = 0;
 
     struct arg* args = (struct arg*)malloc(sizeof(struct arg));
 
@@ -153,11 +164,12 @@ int main()
 
     pid_t pids[10000];
 
-    pids[pCount]=getpid();
+    int procCount = 0;
 
-    pipe(pipes[pCount]);
 
-    write(pipes[pCount][1],&FileCount,sizeof(int));
+    pipe(FilePipes[FilePipeCount]);
+
+    write(FilePipes[FilePipeCount][1], &FileCount, sizeof(int));
 
 
     while ((hFile = readdir(dirFile)) != NULL)
@@ -169,7 +181,14 @@ int main()
         if (hFile->d_type == DT_REG) {
 
             printf("file : %s\n", hFile->d_name);
-    
+
+            read(FilePipes[0][0], &FileCount, sizeof(int));
+
+            FileCount++;
+
+            write(FilePipes[0][1], &FileCount, sizeof(int));
+
+
         }
         if (hFile->d_type == DT_DIR) {
 
@@ -179,36 +198,44 @@ int main()
 
             printf("folder : %s\n", filepath);
 
-            if(pids[pCount]==0){
-            //child
+            if (pids[procCount] == 0) {
+                //child
 
-            char* temp = (char*)malloc(strlen(filepath) + 1);
+                char* temp = (char*)malloc(strlen(filepath) + 1);
 
-            strcpy(temp, filepath);
+                strcpy(temp, filepath);
 
-            struct arg* argsPass = (struct arg*)malloc(sizeof(struct arg));
+                struct arg* argsPass = (struct arg*)malloc(sizeof(struct arg));
 
-            argsPass->path = temp;
+                argsPass->path = temp;
 
-            argsPass->id = id + 1;
-                
-            submitThread(argsPass);
+                argsPass->id = id + 1;
+
+                submitThread(argsPass);
 
 
-
-                
             }
-            else{
-                //parent
-                pCount++;
+            else if (pids[procCount] == 0 && getppid() != 0) {
+                //parent         
 
-                printf("\n\n\n\n p count = %d\n\n\n\n",pCount);
 
-                pipe(pipes[pCount]);
+                pid_t temp = fork();
 
-                write(pipes[pCount][1],&FileCount,sizeof(int));
+                pids[procCount] = temp;
 
-                pids[pCount]=fork();
+                FilePipeCount++;
+                pipe(FilePipes[FilePipeCount]);
+
+                write(FilePipes[FilePipeCount][1], &FileCount, sizeof(int));
+
+                procCount++;
+
+
+
+                printf("\n\n\n%d,%d", pids[procCount], getppid());
+
+                printf("\n\n\n\n COUTNS : %d   %d", procCount, FilePipeCount);
+
 
 
             }
@@ -219,48 +246,66 @@ int main()
     }
 
 
-    printf("\n\n\n\n p count = %d\n\n\n\n",pCount);
 
+    if (pids[procCount] == 0) {
 
-    for(int i=0;i<pCount;i++){
-        wait(NULL);
-    }   
+        for (int j = 0; j < threadCount; j++) {
 
+            if (threads[j] != NULL) {
 
+                pthread_join(threads[j], NULL);
 
-
-     for(int i=0;i<threadCount;i++){
-    
-        if(threads[i]!=NULL){
-            pthread_join(threads[i], NULL);
+            }
 
         }
 
-        pthread_exit(NULL);
-    }    
-
-    int temp=0;
-
-    for(int i=0;i<pCount;i++){
-
-
-        read(pipes[i][0],&FileCount,sizeof(int));
-
-        temp+=FileCount;
-
-        close(pipes[i][0]);
-        close(pipes[i][1]);
+        printf("PCOUNT%d\n\n\n\n", procCount);
 
     }
-        
 
-    printf("\n\n\n%d",temp);
 
-    
+    for (int i = 0; i < procCount; i++) {
+
+        printf("\n\n\n\nPROC%d", i);
+
+        waitpid(pids[i], NULL, 0);
+
+    }
+
+
+    int temp = 0;
+
+    int sum = 0;
+
+
+    for (int i = 0; i <= FilePipeCount; i++) {
+
+        read(FilePipes[i][0], &temp, sizeof(int));
+
+        printf("\n\n\n\nTEMP %d ,%d", i, temp);
+
+        sum += temp;
+
+
+
+    }
+
+
+    printf("\n\n\nRESSSS: %d", sum);
+
+
+
+
+
+
+
+
+
+    printf("KIR");
+
     pthread_mutex_destroy(&mutexQueue);
 
     pthread_mutex_destroy(&mutexCount);
-
 
 
 
