@@ -25,7 +25,6 @@ pthread_t threads[30000];
 
 int threadCount = 0;
 
-
 pthread_mutex_t mutexQueue;
 
 pthread_mutex_t mutexCount;
@@ -72,6 +71,14 @@ int MinSizePipeCount = 0;
 
 int MinSizePipes[10000 + 1][2];
 
+long long RSize = 0;
+
+int RSizePipeCount = 0;
+
+int RSizePipes[10000 + 1][2];
+
+
+
 const char* get_filename_ext(const char* filename) {
 
     const char* dot = strrchr(filename, '.');
@@ -87,13 +94,11 @@ long get_file_size(char* filename) {
         return -1;
     }
 
-    return file_status.st_size;
+    return (file_status.st_size); //kb ->return (file_status.st_size);
 }
 
 
 void* search(void* arguments);
-
-
 
 
 
@@ -210,7 +215,7 @@ void* search(void* arguments) {
 
             read(MinSizePipes[MinSizePipeCount][0], &tempMin, sizeof(long int));
 
-            read(MinSizePipes[MinSizePipeCount][0], &tempN, sizeof(int));
+            read(MinSizePipes[MinSizePipeCount][0], &tempN_, sizeof(int));
 
             char* tempPathh_ = (char*)malloc(tempN_ + 1);
 
@@ -254,9 +259,14 @@ void* search(void* arguments) {
 
             FileCount++;
 
-            printf("%d\n%d\n\n\n\n\n", FilePipeCount, FileCount);
-
             write(FilePipes[FilePipeCount][1], &FileCount, sizeof(int));
+
+            read(RSizePipes[RSizePipeCount][0], &RSize, sizeof(int));
+
+            RSize += get_file_size(filepath);
+
+            write(RSizePipes[RSizePipeCount][1], &RSize, sizeof(int));
+
 
 
 
@@ -336,9 +346,7 @@ int main()
 
     pthread_mutex_init(&mutexCount, NULL);
 
-    char* p = strdup("/home/hakir/Desktop/Main (2)");
-
-    //home/hakir/Desktop/Main (2)
+    char* p = strdup("");
 
     int id = 0;
 
@@ -405,6 +413,11 @@ int main()
     write(MinSizePipes[MinSizePipeCount][1], tempPath, n * sizeof(char));
 
 
+    pipe(RSizePipes[RSizePipeCount]);
+
+    write(RSizePipes[RSizePipeCount][1], &RSize, sizeof(int));
+
+
     while ((hFile = readdir(dirFile)) != NULL)
     {
 
@@ -424,6 +437,12 @@ int main()
             FileCount++;
 
             write(FilePipes[0][1], &FileCount, sizeof(int));
+
+            read(RSizePipes[0][0], &RSize, sizeof(int));
+
+            RSize += get_file_size(filepath);
+
+            write(RSizePipes[0][1], &RSize, sizeof(int));
 
             //max
 
@@ -480,7 +499,7 @@ int main()
 
             read(MinSizePipes[0][0], &tempMin, sizeof(long int));
 
-            read(MinSizePipes[0][0], &tempN, sizeof(int));
+            read(MinSizePipes[0][0], &tempN_, sizeof(int));
 
             char* tempPathh_ = (char*)malloc(tempN_ + 1);
 
@@ -599,6 +618,8 @@ int main()
 
                 MaxSizePipeCount++;
 
+                RSizePipeCount++;
+
                 pipe(FilePipes[FilePipeCount]);
 
                 write(FilePipes[FilePipeCount][1], &FileCount, sizeof(int));
@@ -643,11 +664,12 @@ int main()
 
                 write(MinSizePipes[MinSizePipeCount][1], tempPath, n * sizeof(char));
 
+                pipe(RSizePipes[RSizePipeCount]);
+
+                write(RSizePipes[RSizePipeCount][1], &RSize, sizeof(int));
+
                 procCount++;
 
-                printf("\n\n\n%d,%d", pids[procCount], getppid());
-
-                printf("\n\n\n\n COUTNS : %d   %d", procCount, FilePipeCount);
 
 
 
@@ -833,6 +855,26 @@ int main()
 
 
     printf("File with the smallest size : %s , Size : %ld\n", MINPATH, MIN);
+
+
+
+    long int tempSize = 0;
+
+    long long int sumSize = 0;
+
+
+    for (int i = 0; i <= RSizePipeCount; i++) {
+
+        read(RSizePipes[i][0], &tempSize, sizeof(int));
+
+        sumSize += tempSize;
+
+
+
+    }
+
+
+    printf("Size of the root folder : %d\n", sumSize);
 
 
 
